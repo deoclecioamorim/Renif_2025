@@ -1,0 +1,39 @@
+"0","# Loop de download e processamento
+for (var in vars) {
+  climate_data <- tryCatch(
+    geodata::worldclim_global(var = var, res = 10, path = data_path),
+    error = function(e) {
+      message(paste(""Erro ao baixar:"", var, ""->"", e$message))
+      return(NULL)
+    }
+  )
+
+  if (is.null(climate_data)) next
+
+  message(paste(""Processando:"", var))
+  
+  # Recorte e projeção
+  climate_amz_crop <- terra::crop(climate_data, amz)
+  climate_amz <- terra::mask(climate_amz_crop, amz)
+  
+  climate_amz_sirgas <- terra::project(climate_amz, ""EPSG:4674"")
+  
+  # Média anual
+  climate_mean <- terra::app(climate_amz_sirgas, mean)
+  terra::plot(climate_mean, main = paste(""Média Anual -"", var))
+  
+  # Caminho do arquivo de saída
+  output_filename <- here(""raster"", paste0(var, ""_mean.tif""))
+  terra::writeRaster(climate_mean, filename = output_filename, overwrite = TRUE)
+  
+  message(paste(""Arquivo salvo em:"", output_filename))
+}
+"
+"2","tentando a URL 'https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_10m_tmin.zip'
+"
+"2","Content type 'application/zip'"
+"2"," length 37605037 bytes (35.9 MB)
+"
+"2","downloaded 35.9 MB
+
+"

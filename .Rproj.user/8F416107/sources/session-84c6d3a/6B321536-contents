@@ -1,0 +1,209 @@
+---
+title: "Extração de dados climáticos do Worldclim"
+author: "Deoclecio J. Amorim (CENA), João Paulo Sena-Souza (Unimontes) e Paulo José Duarte Neto (UFRPE)"
+format:
+  html:
+    page-layout: full       # usa toda a largura da janela
+    toc: true
+    toc-location: left
+    fig-width: 5
+    fig-height: 5
+knitr: 
+  opts_chunk: 
+    fig-align: center
+---
+
+```{r}
+#| include: false
+
+# Ajuste global para gráficos
+library(knitr)
+opts_knit$set(global.par = TRUE)
+par(mar = c(5, 5, 1, 1))
+
+```
+
+# Introdução
+
+Aqui o nosso objetivo é apresentar um fluxo completo de extração, recorte e análise de dados climáticos globais do [WorldClim](https://www.worldclim.org/), focando na América do Sul.
+
+Os principais passos são:
+
+- Limpeza do ambiente de trabalho;
+- Instalação e carregamento de pacotes necessários;
+- Download e recorte de dados climáticos globais;
+- Reprojeção para o sistema de coordenadas SIRGAS2000 (EPSG:4674);
+- Cálculo de médias anuais;
+- Exportação dos resultados em formato raster TIFF.
+
+---
+
+# 1. Configuração inicial
+
+```{r pacotes}
+# Limpar área de trabalho
+rm(list = ls())      
+gc(reset = TRUE)     
+graphics.off()       
+
+# Pacotes necessários
+if(!require(readxl))install.packages("readxl", dep = TRUE)
+if(!require(tidyverse))install.packages("tidyverse", dep = TRUE)
+if(!require(terra))install.packages("terra", dep = TRUE)
+if(!require(geodata))install.packages("geodata", dep = TRUE)
+if(!require(geobr))install.packages("geobr", dep = TRUE)
+if(!require(sf))install.packages("sf", dep = TRUE)
+if(!require(sp))install.packages("sp", dep = TRUE)
+if(!require(here))install.packages("here", dep = TRUE)
+
+
+```
+
+---
+
+# 2. Exemplo: Temperatura média global (tavg)
+
+Neste exemplo, vamos obter os arquivos raster de temperatura média para o mundo, na resolução de 10 minutos. Outras resoluções podem ser facilmente obtidas alterando o argumento `res`. 
+
+O argumento `var` oferece várias opções de variáveis climáticas, conforme a seguir:
+
+- `"tmin"` — Temperatura mínima
+- `"tmax"` — Temperatura máxima
+- `"tavg"` — Temperatura média
+- `"prec"` — Precipitação
+- `"wind"` — Velocidade do vento
+- `"vapr"` — Pressão de vapor
+- `"bio"` — Variáveis bioclimáticas
+
+
+```{r tavg}
+# Baixando temperatura média global com resolução de 10 minutos
+tavg_mundo <- geodata::worldclim_global(var = "tavg", res = 5, path = here("worldclim"))
+print(class(tavg_mundo))
+print(terra::crs(tavg_mundo))
+
+```
+
+No estudo de caso, estamos trabalhando apenas com a América do Sul, portanto, faz sentido utilizarmos apenas um recorte específico.
+
+```{r mascara}
+
+# 1. Carregar shapefile da Amazônia Legal
+amz <- terra::vect(here::here("shapefiles", "amazonia_legal.shp"))
+
+# Calcular área em km²
+area_amz_km2 <- sum(terra::expanse(amz, unit = "km"))
+area_amz_km2
+
+# 2. Recortar o raster (usa o bounding box)
+tavg_crop <- terra::crop(tavg_mundo, amz)
+
+# 3. Aplicar máscara para manter apenas os pixels dentro do shape
+tavg_amz <- terra::mask(tavg_crop, amz)
+
+# 4. Visualizar um dos meses (exemplo: janeiro)
+terra::plot(tavg_amz[[1]], main = "Janeiro")
+
+# Resolução espacial
+terra::res(tavg_amz[[1]])
+
+# área de cada célula em km²
+# Area = (res*1º latitude (111,32km))*(res*1º logitude (109,7 km))
+# Area=(0.08333333×111.32)×(0.08333333×109.7)≈9.28×9.14≈84.8 km²
+pixel_area <- terra::cellSize(tavg_amz[[1]], unit = "km")  
+terra::summary(pixel_area)
+```
+
+Finalmente, recomenda-se corrigir a projeção e realizar as operações geoespaciais com os arquivos raster.
+
+
+```{r projecao}
+# Reprojetar e calcular média
+tavg_amz_sirgas <- terra::project(tavg_amz, "EPSG:4674")
+sum(tavg_amz_sirgas)/12
+tavg_mean <- terra::app(tavg_amz_sirgas, mean)
+
+# Visualizar e salvar resultado
+terra::plot(tavg_mean, main = "Temperatura Média")
+# Criar a pasta 'raster' na raiz do projeto
+if (!dir.exists(here("raster"))) dir.create(here("raster"))
+
+# Salvar o raster dentro da pasta 'raster'
+terra::writeRaster(tavg_mean, filename = here("raster", "tavg_mean.tif"), overwrite = TRUE)
+
+```
+
+# 3. Exemplo: Temperatura máxima (tmax)
+
+Aqui, realizamos as mesmas operações para obter a temperatura máxima.
+
+
+```{r tmax}
+tmax_mundo <- geodata::worldclim_global(var = "tmax", res = 10, path = here("worldclim"))
+print(class(tmax_mundo))
+print(terra::crs(tmax_mundo))
+
+tmax_crop <- terra::crop(tmax_mundo, amz)
+# 3. Aplicar máscara para manter apenas os pixels dentro do shape
+tmax_amz <- terra::mask(tmax_crop, amz)
+
+# 4. Visualizar um dos meses (exemplo: janeiro)
+terra::plot(tmax_amz[[10]], main = "Temperatura Máxima: Outubro")
+
+
+tmax_amz_sirgas <- terra::project(tmax_amz, "EPSG:4674")
+tmax_mean <- terra::app(tmax_amz_sirgas, mean)
+terra::plot(tmax_mean, main = "Temperatura Máxima Média")
+
+#Salvar
+terra::writeRaster(tmax_mean, filename = here("raster", "tmax_mean.tif"), overwrite = TRUE)
+
+```
+No banco de dados [WorldClim](https://www.worldclim.org/), existem diversas variáveis climáticas disponíveis. Surge, então, a pergunta: **será que existe uma maneira de trabalhar com múltiplas variáveis ao mesmo tempo?**
+
+A seguir, apresenta-se um bloco de código que realiza essa tarefa. Com certeza, existem formas mais elegantes e eficientes de implementar essa rotina, mas isso exigiria um pouco mais de criatividade e imaginação.
+
+---
+
+# 4. Automatizando o processamento de variáveis
+
+```{r extr_auto}
+
+# Lista de variáveis climáticas a processar
+vars <- c("tavg", "tmax", "tmin", "prec","srad","vapr","elev")
+data_path <- here("worldclim")
+
+
+# Loop de download e processamento
+for (var in vars) {
+  climate_data <- tryCatch(
+    geodata::worldclim_global(var = var, res = 5, path = data_path),
+    error = function(e) {
+      message(paste("Erro ao baixar:", var, "->", e$message))
+      return(NULL)
+    }
+  )
+
+  if (is.null(climate_data)) next
+
+  message(paste("Processando:", var))
+  
+  # Recorte e projeção
+  climate_amz_crop <- terra::crop(climate_data, amz)
+  climate_amz <- terra::mask(climate_amz_crop, amz)
+  
+  climate_amz_sirgas <- terra::project(climate_amz, "EPSG:4674")
+  
+  # Média anual
+  climate_mean <- terra::app(climate_amz_sirgas, mean)
+  terra::plot(climate_mean, main = paste("Média -", var))
+  
+  # Caminho do arquivo de saída
+  output_filename <- here("raster", paste0(var, "_mean.tif"))
+  terra::writeRaster(climate_mean, filename = output_filename, overwrite = TRUE)
+  
+  message(paste("Arquivo salvo em:", output_filename))
+}
+
+
+```

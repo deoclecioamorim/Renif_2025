@@ -1,0 +1,13 @@
+"0","cat(""nVariaveis selecionadas (Predição):\n"")
+"
+"1","nVariaveis selecionadas (Predição):
+"
+"0","cat(""nVariaveis selecionadas (Predição):\n"")"
+"1","nVariaveis selecionadas (Predição):
+"
+"0","print(pred_vars)"
+"1","[1]"
+"1"," ""vapr_mean"""
+"1"," ""elev_mean"""
+"1","
+"

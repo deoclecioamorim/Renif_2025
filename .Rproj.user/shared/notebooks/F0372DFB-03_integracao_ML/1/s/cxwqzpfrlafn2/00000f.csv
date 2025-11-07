@@ -1,0 +1,10 @@
+"0","#Checando valores ausentes
+if (anyNA(preditoras)) {
+  cat(""Warning: Missing values found in predictors. Please handle them before proceeding.\n"")
+  print(which(is.na(predictors), arr.ind = TRUE))
+} else {
+  cat(""No missing values found in predictors.\n"")
+}
+"
+"1","No missing values found in predictors.
+"

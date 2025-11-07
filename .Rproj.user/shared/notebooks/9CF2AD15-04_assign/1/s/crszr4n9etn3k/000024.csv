@@ -1,0 +1,8 @@
+"0","unknown <- d13.amz[d13.amz$ID== 103,]
+unknown <- d13.amz[d13.amz$ID== 103,]
+unknown$d13C_wood
+"
+"1","[1]"
+"1"," -29.9"
+"1","
+"

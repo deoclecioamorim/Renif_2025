@@ -1,0 +1,17 @@
+"0","p1 <- d1$y[which.min(abs(unknown$d13C_wood - d1$x))]
+p2 <- d2$y[which.min(abs(unknown$d13C_wood - d2$x))]
+cat(""PD Amazonas = "", p1, ""\nPD Mato Grosso = "", p2, ""\nRatio = "", p1 / p2)
+"
+"1","PD Amazonas = "
+"1"," "
+"1","0.4581069"
+"1"," "
+"1","
+PD Mato Grosso = "
+"1"," "
+"1","0.0001610313"
+"1"," "
+"1","
+Ratio = "
+"1"," "
+"1","2844.831"

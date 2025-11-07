@@ -1,0 +1,18 @@
+"0","rf.tune <- caret::train(formula_rf2,
+                        data = d13.amz,
+                        ntree = 500)
+"
+"1","note: only"
+"1"," "
+"1","1"
+"1"," "
+"1","unique complexity parameters in default grid."
+"1"," "
+"1","Truncating the grid to"
+"1"," "
+"1","1"
+"1"," "
+"1",".
+
+"
+"0","rf.tune$results"

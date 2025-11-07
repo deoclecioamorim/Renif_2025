@@ -1,0 +1,10 @@
+"0","qt2<-qtlRaster(p.map1, threshold = 0.95, thresholdType = ""prob"", genplot = FALSE)
+
+plot(qt2, axes = FALSE)
+lines(fu.sub)
+#lines(brazil, lwd = 2)
+points(uk.sp, pch = 21, cex = 1.5, lwd = 2)
+
+extract(qt2, uk.sp)
+"
+"0",""

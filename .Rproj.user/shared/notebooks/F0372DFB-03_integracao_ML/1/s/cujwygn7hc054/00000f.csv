@@ -1,0 +1,63 @@
+"0","#Modelo RF com o pacotes ramdomForest
+#Fixando a reprodutibilidade
+set_reproducibility()
+rf.mod1  <- randomForest(
+  formula_rf1,
+  data = d13.amz,
+  ntree = 2000,
+  importance = TRUE,
+  keep.forest = TRUE
+)
+#Modelo RF com o pacotes ramdomForest
+#Fixando a reprodutibilidade
+set_reproducibility()
+rf.mod1  <- randomForest(
+  formula_rf1,
+  data = d13.amz,
+  ntree = 2000,
+  importance = TRUE,
+  keep.forest = TRUE
+)
+rf.mod1
+"
+"1","
+Call:
+"
+"1"," "
+"1","randomForest(formula = formula_rf1, data = d13.amz, ntree = 2000, "
+"1"," "
+"1","    importance = TRUE, keep.forest = TRUE)"
+"1"," "
+"1","
+"
+"1","               Type of random forest: "
+"1",""
+"1","regression"
+"1",""
+"1","
+"
+"1","                     Number of trees: "
+"1",""
+"1","2000"
+"1",""
+"1","
+"
+"1","No. of variables tried at each split: "
+"1",""
+"1","2"
+"1",""
+"1","
+
+"
+"1","          Mean of squared residuals: "
+"1",""
+"1","1.236812"
+"1",""
+"1","
+"
+"1","                    % Var explained: "
+"1",""
+"1","51.47"
+"1",""
+"1","
+"
