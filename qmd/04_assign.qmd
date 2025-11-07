@@ -1,0 +1,333 @@
+---
+title: "Atribuição"
+author: "Deoclecio J. Amorim (CENA), João Paulo Sena-Souza (Unimontes) e Paulo José Duarte Neto (UFRPE)"
+format:
+  html:
+    page-layout: full       # usa toda a largura da janela
+    toc: true
+    toc-location: left
+    fig-width: 5
+    fig-height: 5
+knitr: 
+  opts_chunk: 
+    fig-align: center
+---
+
+```{r}
+#| include: false
+
+# Ajuste global para gráficos
+library(knitr)
+opts_knit$set(global.par = TRUE)
+par(mar = c(5, 5, 1, 1))
+
+```
+
+
+## Configuração inicial
+
+```{r config}
+# Limpar área de trabalho
+rm(list = ls())      
+gc(reset = TRUE)     
+graphics.off()       
+
+#Pacotes necessários
+if(!require(readxl))install.packages("readxl", dep = TRUE, quiet = TRUE)
+if(!require(tidyverse))install.packages("tidyverse", dep = TRUE, quiet = TRUE)
+if(!require(terra))install.packages("terra", dep = TRUE, quiet = TRUE)
+if(!require(geodata))install.packages("geodata", dep = TRUE, quiet = TRUE)
+if(!require(geobr))install.packages("geobr", dep = TRUE, quiet = TRUE)
+if(!require(sf))install.packages("sf", dep = TRUE, quiet = TRUE)
+if(!require(sp))install.packages("sp", dep = TRUE, quiet = TRUE)
+if(!require(here))install.packages("here", dep = TRUE, quiet = TRUE)
+if(!require(assignR))install.packages("assignR", dep = TRUE, quiet = TRUE)
+if(!require(viridis))install.packages("viridis", dep = TRUE, quiet = TRUE)
+
+
+```
+
+## Introdução
+
+O objetivo final com os isoscapes é usá-los para inferir a provável origem geográfica 
+do material de estudo.
+
+Vamos supor o seguinte cenário: Estudar se uma determinada amostra provem do estado do 
+Amazonas ou do Mato grosso. Vamos usar a isoscape gerada pelo modelo RF.
+
+
+```{r fus}
+
+# 1) Ler o shapefile das UFs (Amazônia Legal)
+fu <- terra::vect(here::here("shapefiles", "fu.shp"))
+fu <- terra::project(fu, "EPSG:4674")
+
+crs(fu)
+
+# Veja os nomes de campos disponíveis para filtrar
+# names(fu)
+
+fu.names <- c("Amazonas", "Mato Grosso")
+fus <- fu[fu$ADM1_PT %in% fu.names]
+
+# 2) Ler isoscape gerada pelo modelo RF
+iso_files <- list.files(path = here::here("isoscape"), pattern = "\\.tif$", full.names = TRUE)
+iso_d13   <- terra::rast(iso_files)
+
+# Conferir CRS
+crs(fu)
+crs(iso_d13)
+same.crs(fu, iso_d13)
+
+fus.mu <- extract(iso_d13[[1]], fus, "mean", na.rm = TRUE)
+fus.mu$ID = fu.names
+fus.mu
+
+```
+
+Os valores médios `d13C_wood` previstos pelos nossos mapas isotópicos para os dois estados diferem em cerca de 0.97% (por mil). 
+
+- Com base nisso é possivel determinar se uma amostra provem de algum desses estados? Por exemplo,
+a amostra 103 provem do Amazonas ou Mato Grosso?
+
+```{r unknown}
+amz_var_clim <- readxl::read_excel(here::here("dados", "madeira_amz_var_clim.xlsx"), sheet = 1)
+head(amz_var_clim) #leitura das primeiras 6 linhas
+str(amz_var_clim) #Estrutura dos dados
+
+
+#Tratando NAs
+d13.amz <- amz_var_clim[!is.na(amz_var_clim$d13C_wood), ]
+
+# Adicionando ID
+d13.amz$ID <- 1:nrow(d13.amz)
+
+d13.amz <- d13.amz %>% relocate(ID, .before = 1)
+
+unknown <- d13.amz[d13.amz$ID== 103,]
+unknown$d13C_wood
+```
+
+Dado o valor medido, como você julgaria qual unidade é a origem mais provável? A maioria dos algoritmos de classificação simples usa uma métrica de distância para avaliar a similaridade entre o valor da amostra e as classes possíveis, atribuindo então a amostra à classe mais similar. Por exemplo:
+
+```{r invDiff}
+fus.mu$inv.diff <- 1 / abs(unknown$d13C_wood - fus.mu[, 2])
+fus.mu
+```
+
+Com base no inverso da distância podemos admitir que é mais coerente essa amostra
+ser do Amazonas. Vejamos mais alguns detalhes:
+
+:::{#fuDist}
+```{r fuDist}
+#| fig-width: 6
+#| fig-height: 4
+
+cols = viridis(2, begin = 0.2, end = 0.8)
+fus.all = extract(iso_d13, fus)
+d1 = density(fus.all[fus.all$ID == 1, 2], na.rm = TRUE)
+d2 = density(fus.all[fus.all$ID == 2, 2], na.rm = TRUE)
+plot(d1, xlim = range(fus.all[, 2], na.rm = TRUE), 
+     ylim = range(c(d1$y, d2$y)), main = "", 
+     xlab = expression(delta^{13}*"C"["wood"]), col = cols[1], lwd = 3)
+lines(d2, col = cols[2], lwd = 3)
+abline(v = unknown$d13C_wood, lwd = 3, lty = 3)
+legend("topleft", fu.names, lwd = 3, col = cols, bty = "n")
+```
+:::
+
+Note que agora as coisas parecem um pouco diferentes. O que não percebemos antes, quando avaliamos apenas as médias, é que as `d13C_wood` previsões para Mato Grosso estão restritas a uma faixa estreita de valores, enquanto as do Amazonas são muito mais dispersas. Como resultado, o valor da amostra desconhecida tem, na verdade, uma probabilidade maior de ocorrer no Amazonas. Podemos avaliar a diferença entre as probabilidades extraindo a densidade de probabilidade do valor da amostra por mil dos kernels para as duas regiões:
+
+:::{#fuRatio}
+```{r fuRatio}
+p1 <- d1$y[which.min(abs(unknown$d13C_wood - d1$x))]
+p2 <- d2$y[which.min(abs(unknown$d13C_wood - d2$x))]
+cat("PD Amazonas = ", p1, "\nPD Mato Grosso = ", p2, "\nRatio = ", p1 / p2)
+```
+:::
+
+Isso demonstra que a probabilidade de encontrar esse valor no Amazonas é muito maior do que no Mato Grosso, levantando a hipotese que realmente o Amazonas seja a região de origem mais provável.
+
+Podemos ir um passo além, no entanto, aplicando o Teorema de Bayes para fazer uma afirmação quantitativa sobre a probabilidade de cada unidade ser a verdadeira região de origem, partirmos das seguintes premissas:
+
+1) Nossa amostra desconhecida deve ter vindo de um dos dois estados, e
+
+2) Antes de considerarmos nossos dados isotópicos, ambos os estados têm a mesma probabilidade de serem a verdadeira origem.
+
+O Teorema de Bayes nos diz que a probabilidade de uma determinada região ser a verdadeira região de origem é igual à probabilidade de observarmos nossos dados isotópicos nessa região dividida pela probabilidade de observarmos os dados em qualquer uma das regiões. Acabamos de determinar as probabilidades para os dados acima, o que torna esse cálculo muito fácil:
+
+```{r fuPost}
+data.frame("Region" = fu.names, "Probalidade_posteiro" = 
+             c(p1 / sum(p1, p2), p2 / sum(p1, p2)))
+```
+
+A probabilidade posterior é a probabilidade após considerarmos nossas novas evidências (isotópicas) e, como você pode ver aqui, ela sugere que há uma alta probabilidade (99%) de que nossa amostra desconhecida seja do Amazonas e não do Mato Grosso. Se quisermos 'atribuir' a amostra a uma região de origem mais provável, escolheríamos o Amazonas.
+
+Resumindo nosso exemplo, a chave para atribuir a amostra a uma região geográfica é encontrar a probabilidade de nossa evidência (o valor da amostra `d13C_wood`) ocorrer em cada uma de nossas potenciais regiões de origem. Com essa informação, podemos aplicar o Teorema de Bayes para encontrar a probabilidade de cada região ser a verdadeira origem.
+
+
+## Isoscapes baseados em probabilidade
+
+Usando a isoscape gerada pelo modelo RF vamos considerar cada célula da grade no mapa de isótopos separadamente como uma possível localização de onde nossa amostra pode ter se originado. 
+
+Uma das implicações dessa abordagem é que agora estamos considerando um número muito grande de possíveis locais de origem. Esse número dependerá da extensão e da resolução do nosso mapa isotópico, mas, neste exemplo, o número é:
+
+```{r nCell}
+sum(!is.na(values(iso_d13[[1]])))
+
+# Cada pixel tem aproximadamente 85 km2
+terra::res(iso_d13[[1]])
+```
+Consequentemente, a probabilidade de qualquer célula da grade ser a localização real de origem será bastante pequena. Por exemplo, se nossa suposição inicial for que cada célula da grade tem a mesma probabilidade de ser a verdadeira origem da amostra, cada célula terá uma probabilidade de:
+
+```{r cellProb}
+1 / sum(!is.na(values(iso_d13[[1]])))
+```
+Esses pequenos valores de probabilidade confundem um pouco, mas podemos ver aqui como eles surgem e que são esperados. Em geral, não estaremos interessados nos valores de probabilidade em si, mas na magnitude relativa das probabilidades para diferentes locais.
+
+Para aplicar nosso método baseado em probabilidade às células da grade do mapa de isótopos, precisamos conhecer as distribuições de probabilidade dos `d13C_wood` valores em cada célula. Nesse caso, vamos assumir a suposição de normalidade.
+
+Para realizar a análise (e ao longo do restante desta vinheta), usaremos funções do
+[`assignR` package](https://cran.r-project.org/package=assignR).
+
+```{r pdRaster}
+#| fig.align: center
+#| fig.show: hold
+#| fig.asp: 0.6
+#| out.width: "90%"
+#| fig.margin: FALSE
+sam <- data.frame("ID" = unknown$ID, "d13C" = unknown$d13C_wood)
+p.map1 <-  pdRaster(iso_d13, sam, genplot = FALSE)
+uk.sp <- vect(unknown, geom = c("x", "y"), crs = "EPSG:4674")
+fu.sub <- fu[fu$ADM1_PT %in% fu.names]
+
+plot(p.map1, axes = FALSE)
+lines(fu.sub, lwd = 2)
+#lines(brazil, lwd = 2)
+points(uk.sp, pch = 21, cex = 2, lwd = 2, bg = "white")
+```
+O mapa mostra a localização de origem verdadeira e conhecida desta amostra. É possível observar que ela não se encontra em uma região com probabilidade posterior particularmente alta. Também não está na região com as probabilidades mais baixas. Podemos extrair o valor real para esta localização, que se situa no meio do intervalo obtido na análise:
+
+```{r rastProb}
+extract(p.map1, uk.sp)
+```
+
+
+
+## Inferência
+
+Algumas perguntas:
+
+- 1) *De onde veio a amostra*? 
+
+- 2) *Quais são os locais de origem mais prováveis*?
+
+A função `qtlRaster()` oferece duas opções para tentar responder essas questões,
+a primeira (e padrão) baseada na área do mapa:
+
+```{r qt1}
+#| fig.align: center
+#| fig.show: hold
+#| fig.asp: 0.6
+#| out.width: "90%"
+#| fig.margin: FALSE
+qt1 <- qtlRaster(p.map1, threshold =0.5, genplot = FALSE)
+
+plot(qt1, axes = FALSE)
+lines(fu.sub)
+#lines(brazil, lwd = 2)
+points(uk.sp, pch = 21, cex = 1.5, lwd = 2, bg = "white")
+```
+
+Aqui extrairmos 50% da área de estudo, gerando mapas que mostram os 50% das 
+células da grade com a maior probabilidade posterior da amostra.
+
+A segunda opção de atribuição é um pouco menos arbitrária e envolve a seleção das células mais prováveis da malha isotópica que representam coletivamente uma certa quantidade da probabilidade posterior. Neste caso, escolhemos um valor de 0,95. Assim, podemos interpretar diretamente o resultado: tendo em conta os dados e os pressupostos da nossa análise, existe uma probabilidade de 95% de a amostra provir da área selecionada.
+
+
+
+:::{#qt2}
+```{r qt2}
+#| fig.align: center
+#| fig.show: hold
+#| fig.asp: 0.6
+#| out.width: "90%"
+#| fig.margin: FALSE
+qt2<-qtlRaster(p.map1, threshold = 0.95, thresholdType = "prob", genplot = FALSE)
+
+plot(qt2, axes = FALSE)
+lines(fu.sub)
+#lines(brazil, lwd = 2)
+points(uk.sp, pch = 21, cex = 1.5, lwd = 2)
+
+extract(qt2, uk.sp)
+```
+:::
+
+Como você pode ver, precisamos selecionar mais de 50% da área de estudo para atingir nosso limiar de probabilidade de 95%. Também é possível observar que, neste caso, a verdadeira localização de origem está incluída na região de atribuição.  Sempre haverá muitos locais onde um determinado valor pode ocorrer, mas pode ser bastante óbvio quando o valor de uma amostra não corresponde bem a um determinado local.
+
+Usando a razão de chances podemos responder Qual unidade federativa é a localização de origem mais provável, Amazonas ou Mato Grosso? 
+
+
+```{r odds}
+oddsRatio(p.map1, fu.sub)
+```
+Há dois pontos a observar aqui:
+
+- A razão de chances indica que é 1,7 vezes mais provável que a amostra tenha vindo do Amazonas (que por acaso é o verdadeiro local de origem).
+
+
+```{r pdDist}
+#| fig-width: 6
+#| fig-height: 4
+
+pts = sample(which(fus.all$ID == 1), 5)
+pts = c(pts, sample(which(fus.all$ID == 2), 5))
+
+plot(NULL, xlim = c(-32, -26), ylim = c(0, 0.7), 
+     xlab = expression(delta^{13}*"C"["wood"]), ylab = "Density")
+
+for(i in pts){
+  lines(density(rnorm(1e6, fus.all[i, 2], fus.all[i, 3])), lwd = 3, 
+        col = cols[fus.all[i, 1]])
+}
+abline(v = unknown$d13C_wood, lwd = 3, lty = 3)
+legend("topleft", fu.names, lwd = 3, col = cols, bty = "n")
+
+```
+
+
+Nossa análise de probabilidade de isótopos adiciona um fator importante que ignoramos implicitamente na análise de classificação original: a incerteza da previsão. Lembre-se de que nossos modelos de isótopos explicam apenas cerca de metade da `d13C_wood` variabilidade. A variação restante provém de duas fontes:
+
+- Erro do modelo - nosso modelo é imperfeito e não representa perfeitamente o padrão de `d13C_wood` valores médios na área de estudo.
+
+- Variabilidade local - árvores individuais que vivem no mesmo local podem apresentar valores que variam em vários por mil. Por exemplo, aqui está a distribuição de valores para árvores individuais da mesma família e local de coleta que nossa amostra de teste desconhecida:
+
+
+```{r variance}
+plot(density(d13.amz$d13C_wood[d13.amz$Family == unknown$Family & 
+                               d13.amz$Site == unknown$Site]),
+     xlab = expression(delta^{13}*"C"["wood"]), main = "", lwd = 2)
+```
+Se quisermos avaliar se uma amostra pode ter vindo deste local com base em seu `d13C_wood` valor, é importante conhecer o valor médio do local, mas também precisamos considerar a dispersão: claramente, valores que variam de -34 a -26 por mil são plausíveis neste local.
+
+### Qualidade da atribuição
+
+
+```{r QA}
+#| output: false
+
+known <- d13.amz[d13.amz$Family == "Burseraceae", c("x", "y", "d13C_wood")]
+known <- vect(known, geom = c("x", "y"), crs = "EPSG:4674")
+qa1 <- QA(known, iso_d13, bySite = FALSE, recal = FALSE)
+```
+```{r plotQA}
+#| layout-ncol: 2
+
+plot(qa1)
+```
+
+
+
+
+

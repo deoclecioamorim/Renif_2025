@@ -1,0 +1,4 @@
+project:
+  output-dir: qmd/html/
+  execute-dir: project
+  post-render: R/_move_output.R
