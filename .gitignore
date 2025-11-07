@@ -1,0 +1,9 @@
+.Rhistory
+.RData
+.Ruserdata
+
+# ignorar planilhas dentro de 'dados' (e subpastas)
+dados/*.xlsx
+dados/*.csv
+dados/**/*.xlsx
+dados/**/*.csv
