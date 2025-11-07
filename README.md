@@ -1,0 +1,24 @@
+# Renif 2025
+
+Projeto desenvolvido por **Prof. Dr. Deoclecio Jardim Amorim**
+
+Este repositório contém scripts e análises para 
+o minicurso **Isoscapes e teste de atribuição**
+ministrado no 7º Workshop Nacional sobre Isótopos Forenses.
+
+## Estrutura
+- `R/` — scripts R
+- `qmd/` — relatórios Quarto
+- `dados/` — arquivos de dados locais (não versionados)
+- `worldclim/` — dados climáticos
+- `raster/` — saídas espaciais
+
+## Como reproduzir
+1. Clone este repositório.
+2. Abra o projeto `.Rproj` no RStudio.
+3. Rode os scripts principais na pasta `R/r_code_qmd` ou execute chunks nos arquivos .qmd
+
+## Disponibilidade dos dados
+Os dados utilizados no exemplo não foram disponibilizados, pois ainda não foram publicados. No entanto,
+o roteiro disponibilizado pode ser adaptado facilmente para outros cenários.
+ 
