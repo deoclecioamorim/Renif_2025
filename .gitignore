@@ -2,3 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# Ignorar apenas planilhas dentro de 'dados/'
+/dados/*.xlsx
+/dados/*.csv
+/dados/**/*.xlsx
+/dados/**/*.csv
